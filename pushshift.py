@@ -139,12 +139,7 @@ class PushshiftAPI:
 
     # RUN THE search
     def run(self):
-        Subm_Arr = []
-        self.url = self.get_search_string()
-        response = requests.get(self.url)
-        for post in response.json()['data']:
-            Subm_Arr.append(post)
-        return Subm_Arr
+        return requests.get(self.url).json()['data']
 
 
 """
