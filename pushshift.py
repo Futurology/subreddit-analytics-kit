@@ -12,92 +12,78 @@ def main():
     # print(ps.run())
     # ps = PushshiftAPI()
 
-    # # Setting search in set_search-terms_with_kwargs()
-    # ps = PushshiftAPI()
-    # ps.set_search_terms_with_kwargs(subreddit='futurology',
-    #                                 start_date=datetime.date(2018, 3, 1),
-    #                                 end_date=datetime.date(2018, 3, 7),
-    #                                 )
-    # print(ps.run())
-
-    # Setting search with class methods
-    ps = PushshiftAPI()
-    ps.set_subreddit('futurology')
-    ps.set_start_date(datetime.date(2018, 3, 1))
-    ps.set_end_date(datetime.date(2018, 3, 7))
+    # Setting search in set_search-terms_with_kwargs()
+    ps = SubmissionPushshiftAPI()
+    ps.set_search_terms_with_kwargs(subreddit='futurology',
+                                    start_date=datetime.date(2018, 3, 1),
+                                    end_date=datetime.date(2018, 3, 7),
+                                    )
     print(ps.run())
 
+    ## Setting search with class methods
+    # ps = CommentsPushshiftAPI()
+    # ps.set_subreddit('futurology')
+    # ps.set_start_date(datetime.date(2018, 3, 1))
+    # ps.set_end_date(datetime.date(2018, 3, 7))
+    # print(ps.run())
 
-class PushshiftAPI:
+
+class BasePushshiftAPI(object):
     """
     Wrapper on pushshift api - https://github.com/pushshift/api
     """
-
-    def __init__(self, search_term=None, comment_ids=None, size=25, fields=None, sort='desc',
-                 sort_type='created_utc', aggregate_on=None, redditor=None, subreddit=None, start_date=None,
-                 end_date=None, frequency=None, **kwargs):
-        self.search_term = search_term
-        self.comment_ids = comment_ids
-        self.size = size
-        self.fields = fields
-        self.sort = sort
-        self.sort_type = sort_type
-        self.aggregate_on = aggregate_on
-        self.redditor = redditor
-        self.subreddit = subreddit
-        self.start_date = start_date
-        self.end_date = end_date
-        self.frequency = frequency
-        self.url_start = 'https://api.pushshift.io/reddit/search/submission?'
-        self.kwargs = kwargs
-        self.url = self.get_search_string()
-
-    def reset_search_terms(self):
-        """
-        Resets the values of all search term to their defaults.
-        :return: None
-        """
-        self.search_term = None
-        self.comment_ids = None
-        self.size = 25
+    def __init__(self, **kwargs):
+        self.search_text = None
+        self.num_results = None
         self.fields = None
-        self.sort = 'desc'
-        self.sort_type = 'created_utc'
+        self.sort = None
+        self.sort_type = None
         self.aggregate_on = None
         self.redditor = None
         self.subreddit = None
         self.start_date = None
         self.end_date = None
-        self.frequency = None
+        self.agg_frequency = None
+
+        self.url_start = None
         self.url = self.get_search_string()
 
-    # I think we could abstract this if we want to be more pythonic.
-    # Also, each field needs data sanatation / string conversion.
+        self.set_search_terms_with_kwargs(**kwargs)
+
+    def reset_search_terms(self):
+        """
+        Sets all search terms to None
+        :return: None
+        """
+        for key in self.__dict__.keys():
+            self.__setattr__(key, None)
+
+    @staticmethod
+    def get_term_map():
+        """
+        A dict containing friendly term name to API term name mappings in a dict.
+        :return: dict
+        """
+        mapping = {'search_text': 'q',
+                   'num_results': 'size',
+                   'fields': 'fields',
+                   'sort': 'sort',
+                   'sort_type': 'sort_type',
+                   'aggregate_on': 'aggs',
+                   'redditor': 'author',
+                   'subreddit': 'subreddit',
+                   'start_date': 'after',
+                   'end_date': 'before',
+                   'agg_frequency': 'frequency'
+                   }
+        return mapping
+
     def get_search_string(self):
         url = self.url_start
-        if self.search_term:
-            url = url + '&q=' + self.search_term
-        if self.comment_ids:
-            url = url + '&ids=' + str(self.comment_ids)
-        if self.size:
-            url = url + '&size=' + str(self.size)
-        if self.fields:
-            url = url + '&fields=' + self.fields
-        if self.sort:
-            url = url + '&sort=' + self.sort
-        if self.sort_type:
-            url = url + '&sort_type=' + self.sort_type
-        if self.aggregate_on:
-            url = url + '&aggs=' + self.aggregate_on
-        if self.redditor:
-            url = url + '&author=' + self.redditor
-        if self.subreddit:
-            url = url + '&subreddit=' + self.subreddit
-        if self.start_date:
-            url = url + '&after=' + self.start_date
-        if self.end_date:
-            url = url + '&before=' + self.end_date
-        self.url = url
+        term_map = self.get_term_map()
+        for key, value in self.__dict__.items():
+            if key in term_map.keys() and value:
+                url = f'{url}&{term_map[key]}={value}'
         return url
 
     def set_search_terms_with_kwargs(self, **kwargs):
@@ -112,16 +98,33 @@ class PushshiftAPI:
                 print(key + ' has no set method.')
         self.url = self.get_search_string()
 
-        # self.search_term = str(search_term)
-
-    # What does this do?
-    def set_comment_ids(self, comment_ids):
-        self.comment_ids = comment_ids
+    def run(self):
         self.url = self.get_search_string()
+        return requests.get(self.url).json()['data']
+
+    def set_search_text(self, search_text):
+        self.search_text = f'"{search_text}"'
+
+    def set_size(self, num_results):
+        self.num_results = str(num_results)
+
+    def set_fields(self, fields):
+        self.fields = fields
+
+    def set_sort(self, fields):
+        self.fields = fields
+
+    def set_sort_type(self, sort_type):
+        self.sort_type = sort_type
+
+    def set_aggregate_on(self, aggregate_on):
+        self.aggregate_on = aggregate_on
+
+    def set_redditor(self, redditor):
+        self.redditor = redditor
 
     def set_subreddit(self, subreddit):
         self.subreddit = subreddit
-        self.url = self.get_search_string()
 
     def set_start_date(self, start_date):
         if isinstance(start_date, datetime.date):
@@ -137,45 +140,119 @@ class PushshiftAPI:
             self.end_date = end_date
         self.url = self.get_search_string()
 
-    # RUN THE search
-    def run(self):
-        return requests.get(self.url).json()['data']
+    def set_agg_frequency(self, agg_frequency):
+        self.agg_frequency = agg_frequency
 
 
-"""
-def getData(UTstart, UTend):
-    url = 'https://api.pushshift.io/reddit/search/submission?&size=1000&after='+str(UTstart)+'&before='+str(UTend)+'&subreddit=futurology'
-    response = urllib.urlopen(url)
-    data = json.loads(response.read())
-    rdata = data['data']
-    for post in rdata:
-        Subm_Arr.append(post)
+class CommentsPushshiftAPI(BasePushshiftAPI):
+    """
+    Wrapper on pushshift api - https://github.com/pushshift/api
+    """
 
+    def __init__(self, **kwargs):
+        self.comment_ids = None
 
-def getMonthlyData(month, year):
-    days = monthrange(year, month)
-    #print days[1]
-    for day in range(1,days[1]):
-        for hour in range(0,23):
-            t_start = datetime.datetime(2018,month,day,hour,0)
-            print('t_start: ' + str(t_start))
-            ut_start = int(time.mktime(t_start.timetuple()))
-            print('ut_start: ' + str(ut_start))
-            t_end = datetime.datetime(2018,month,day,hour+1,0)
-            ut_end = int(time.mktime(t_end.timetuple()))
-            getData(ut_start, ut_end)
-            print('Day: '+str(month)+'/'+str(day)+'/'+str(year)+', hour:'+str(hour))
+        BasePushshiftAPI.__init__(self, **kwargs)
 
+        self.url_start = 'https://api.pushshift.io/reddit/comment/search?'
+        self.url = self.get_search_string()
 
-getMonthlyData(1, 2018)
-getMonthlyData(2, 2018)
-getMonthlyData(3, 2018)
+    def get_term_map(self):
+        """
+        A dict containing friendly term name to API term name mappings in a dict.
+        :return: dict
+        """
+        super_mapping = BasePushshiftAPI.get_term_map()
+        mapping = {'comment_ids': 'ids'
+                   }
+        return {**super_mapping, **mapping}
 
-# #print Subm_Arr
-# df_posts = pd.DataFrame(Subm_Arr)
-# file_Name = "2018_01-03_Futurology.tsv"
-# df_posts.to_csv(file_Name, sep='\t', header=True, encoding='utf-8')
-"""
+    def set_comment_ids(self, comment_ids):
+        self.comment_ids = comment_ids
+
+class SubmissionPushshiftAPI(BasePushshiftAPI):
+    """
+    Wrapper on pushshift api - https://github.com/pushshift/api
+    """
+
+    def __init__(self, **kwargs):
+        self.submission_ids = None
+        self.exclude_text = None
+        self.self_text_search = None
+        self.self_text_exclude = None
+        self.score = None
+        self.num_comments = None
+        self.over_18 = None
+        self.is_video = None
+        self.locked = None
+        self.stickied = None
+        self.spoiler = None
+        self.contest_mode = None
+
+        BasePushshiftAPI.__init__(self, **kwargs)
+
+        self.url_start = 'https://api.pushshift.io/reddit/search/submission/?'
+        self.url = self.get_search_string()
+
+    def get_term_map(self):
+        """
+        A dict containing friendly term name to API term name mappings in a dict.
+        :return: dict
+        """
+        super_mapping = BasePushshiftAPI.get_term_map()
+        mapping = {'submission_ids': 'ids',
+                   'exclude_text': 'q:not',
+                   'title': 'title',
+                   'exclude_title': 'title:not',
+                   'self_text_serch': 'selftext',
+                   'self_text_exclude': 'selftext:not',
+                   'score': 'score',
+                   'num_comments': 'num_comments',
+                   'over_18': 'over_18',
+                   'is_video': 'is_video',
+                   'locked': 'locked',
+                   'stickied': 'stickied',
+                   'spoiler': 'spoilder',
+                   'contest_mode': 'contest_mode'
+                   }
+        return {**super_mapping, **mapping}
+
+    def set_submission_ids(self, submission_ids):
+        self.submission_ids = submission_ids
+
+    def set_exclude_text(self, exclude_text):
+        self.exclude_text = f'"{exclude_text}"'
+
+    def set_self_text_search(self, self_text_search):
+        self.self_text_search = f'"{self_text_search}"'
+
+    def set_self_text_exclude(self, self_text_exclude):
+        self.self_text_exclude = f'"{self_text_exclude}"'
+
+    def set_score(self, score):
+        self.score = str(score)
+
+    def set_num_comments(self, num_comments):
+        self.num_comments = str(num_comments)
+
+    def set_over_18(self, over_18):
+        self.over_18 = over_18
+
+    def set_is_video(self, is_video):
+        self.is_video = is_video
+
+    def set_locked(self, locked):
+        self.locked = locked
+
+    def set_stickied(self, stickied):
+        self.stickied = stickied
+
+    def set_spoiler(self, spoiler):
+        self.spoiler = spoiler
+
+    def set_conetst_mode(self, contest_mode):
+        self.contest_mode = contest_mode
+
 
 if __name__ == '__main__':
     main()
