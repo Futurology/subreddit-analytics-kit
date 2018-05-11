@@ -1,6 +1,7 @@
 import praw
 from reddit_objects import Reddit
 import pprint
+from pushshift import CommentsPushshiftAPI
 
 def main():
     reddit = Reddit()
